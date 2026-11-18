@@ -1,0 +1,1 @@
+import{PageHead,Empty}from'../components/ui';export default function Placeholder(){return <><PageHead title="Workspace"/><Empty title="This area is ready for your data" body="Use the API-backed course, assignment, grading and administration workflows to continue building this view."/></>}

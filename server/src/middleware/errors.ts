@@ -1,0 +1,2 @@
+import type { NextFunction, Request, Response } from 'express'; import { ZodError } from 'zod';
+export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) { console.error(err); if (err instanceof ZodError) return res.status(422).json({ success: false, message: 'Please correct the highlighted fields', code: 'VALIDATION_ERROR', errors: err.flatten() }); return res.status(500).json({ success: false, message: 'An unexpected error occurred', code: 'INTERNAL_ERROR' }); }

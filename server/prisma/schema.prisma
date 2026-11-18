@@ -1,0 +1,276 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  LECTURER
+  LEARNER
+}
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  DROPPED
+  SUSPENDED
+}
+enum SubmissionStatus {
+  DRAFT
+  SUBMITTED
+  LATE
+  GRADED
+}
+
+model User {
+  id String @id @default(cuid())
+  email String @unique
+  passwordHash String
+  role Role
+  status UserStatus @default(ACTIVE)
+  profile Profile?
+  learner Learner?
+  lecturer Lecturer?
+  refreshTokens RefreshToken[]
+  notifications Notification[]
+  auditLogs AuditLog[] @relation("Actor")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model Profile {
+  id String @id @default(cuid())
+  userId String @unique
+  firstName String
+  lastName String
+  phone String?
+  avatarUrl String?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+model Learner {
+  id String @id @default(cuid())
+  userId String @unique
+  registrationNo String @unique
+  programmeId String?
+  currentYearId String?
+  currentSemesterId String?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  programme Programme? @relation(fields: [programmeId], references: [id])
+  currentYear AcademicYear? @relation(fields: [currentYearId], references: [id])
+  currentSemester Semester? @relation(fields: [currentSemesterId], references: [id])
+  enrollments Enrollment[]
+  courseEnrollments CourseEnrollment[]
+  submissions AssignmentSubmission[]
+  progress CourseProgress[]
+}
+model Lecturer {
+  id String @id @default(cuid())
+  userId String @unique
+  staffNo String @unique
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courses Course[]
+  materials LearningMaterial[]
+  assignments Assignment[]
+  announcements Announcement[]
+}
+model Programme {
+  id String @id @default(cuid())
+  code String @unique
+  name String
+  description String?
+  isDemo Boolean @default(true)
+  active Boolean @default(true)
+  courses Course[]
+  learners Learner[]
+  enrollments Enrollment[]
+  createdAt DateTime @default(now())
+}
+model AcademicYear {
+  id String @id @default(cuid())
+  name String @unique
+  order Int
+  active Boolean @default(true)
+  semesters Semester[]
+  courses Course[]
+  learners Learner[]
+}
+model Semester {
+  id String @id @default(cuid())
+  name String
+  sequence Int
+  academicYearId String
+  active Boolean @default(true)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  courses Course[]
+  learners Learner[]
+  @@unique([academicYearId, name])
+}
+model Course {
+  id String @id @default(cuid())
+  code String @unique
+  title String
+  description String?
+  objectives String[]
+  creditHours Int @default(3)
+  active Boolean @default(true)
+  programmeId String
+  academicYearId String
+  semesterId String
+  lecturerId String?
+  thumbnailUrl String?
+  programme Programme @relation(fields: [programmeId], references: [id])
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id])
+  semester Semester @relation(fields: [semesterId], references: [id])
+  lecturer Lecturer? @relation(fields: [lecturerId], references: [id])
+  enrollments CourseEnrollment[]
+  folders MaterialFolder[]
+  materials LearningMaterial[]
+  assignments Assignment[]
+  announcements Announcement[]
+  progress CourseProgress[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([programmeId, semesterId])
+}
+model Enrollment {
+  id String @id @default(cuid())
+  learnerId String
+  programmeId String
+  academicYearId String
+  semesterId String
+  status EnrollmentStatus @default(ACTIVE)
+  enrolledAt DateTime @default(now())
+  learner Learner @relation(fields: [learnerId], references: [id])
+  programme Programme @relation(fields: [programmeId], references: [id])
+  @@unique([learnerId, programmeId, academicYearId, semesterId])
+}
+model CourseEnrollment {
+  id String @id @default(cuid())
+  learnerId String
+  courseId String
+  status EnrollmentStatus @default(ACTIVE)
+  enrolledAt DateTime @default(now())
+  learner Learner @relation(fields: [learnerId], references: [id])
+  course Course @relation(fields: [courseId], references: [id])
+  @@unique([learnerId, courseId])
+}
+model MaterialFolder {
+  id String @id @default(cuid())
+  name String
+  courseId String
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  materials LearningMaterial[]
+  @@unique([courseId, name])
+}
+model LearningMaterial {
+  id String @id @default(cuid())
+  title String
+  description String?
+  fileUrl String
+  fileName String
+  mimeType String
+  fileSize Int
+  courseId String
+  lecturerId String
+  folderId String?
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lecturer Lecturer @relation(fields: [lecturerId], references: [id])
+  folder MaterialFolder? @relation(fields: [folderId], references: [id])
+  createdAt DateTime @default(now())
+}
+model Assignment {
+  id String @id @default(cuid())
+  title String
+  description String
+  instructions String?
+  attachmentUrl String?
+  maxMarks Float
+  dueDate DateTime
+  published Boolean @default(false)
+  allowResubmission Boolean @default(false)
+  courseId String
+  lecturerId String
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lecturer Lecturer @relation(fields: [lecturerId], references: [id])
+  submissions AssignmentSubmission[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model AssignmentSubmission {
+  id String @id @default(cuid())
+  assignmentId String
+  learnerId String
+  fileUrl String?
+  fileName String?
+  comment String?
+  submittedAt DateTime?
+  status SubmissionStatus @default(DRAFT)
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  learner Learner @relation(fields: [learnerId], references: [id])
+  grade Grade?
+  @@unique([assignmentId, learnerId])
+}
+model Grade {
+  id String @id @default(cuid())
+  submissionId String @unique
+  marks Float
+  percentage Float
+  letter String
+  feedback String?
+  gradedAt DateTime @default(now())
+  submission AssignmentSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+}
+model CourseProgress {
+  id String @id @default(cuid())
+  learnerId String
+  courseId String
+  materialViews Int @default(0)
+  activitiesCompleted Int @default(0)
+  learner Learner @relation(fields: [learnerId], references: [id])
+  course Course @relation(fields: [courseId], references: [id])
+  @@unique([learnerId, courseId])
+}
+model Announcement {
+  id String @id @default(cuid())
+  title String
+  body String
+  courseId String
+  lecturerId String
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lecturer Lecturer @relation(fields: [lecturerId], references: [id])
+  createdAt DateTime @default(now())
+}
+model Notification {
+  id String @id @default(cuid())
+  userId String
+  title String
+  body String
+  readAt DateTime?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+model RefreshToken {
+  id String @id @default(cuid())
+  tokenHash String @unique
+  userId String
+  expiresAt DateTime
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+model AuditLog {
+  id String @id @default(cuid())
+  userId String?
+  action String
+  resource String
+  resourceId String?
+  ipAddress String?
+  user User? @relation("Actor", fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  @@index([createdAt])
+}

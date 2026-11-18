@@ -1,0 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap');
+@tailwind base;@tailwind components;@tailwind utilities;
+@layer base{body{@apply bg-sand text-ink font-sans;}.focus-ring{@apply focus:outline-none focus:ring-2 focus:ring-gold focus:ring-offset-2;}}
+@layer components{.card{@apply rounded-2xl bg-white shadow-card border border-ink/5;}.btn{@apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 font-semibold transition focus-ring;}.btn-primary{@apply btn bg-forest text-white hover:bg-ink;}.btn-soft{@apply btn bg-mint text-forest hover:bg-mint/70;}.label{@apply text-xs font-bold uppercase tracking-wider text-ink/55;}.nav-item{@apply flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-ink/65 hover:bg-mint hover:text-forest;}.nav-item-active{@apply bg-forest text-white hover:bg-forest hover:text-white;}}
