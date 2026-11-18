@@ -1,11 +1,59 @@
-import { PrismaClient } from '@prisma/client'; import bcrypt from 'bcryptjs';
-type Role = 'ADMIN' | 'LECTURER' | 'LEARNER';
-const p=new PrismaClient(); const pw=()=>bcrypt.hash('Rhyme@2026',12);
-async function user(email:string,role:Role,first:string,last:string, extra?:{reg?:string;staff?:string;programmeId?:string;yearId?:string;semesterId?:string}){const hash=await pw();return p.user.upsert({where:{email},update:{},create:{email,role,passwordHash:hash,profile:{create:{firstName:first,lastName:last}},...(extra?.reg?{learner:{create:{registrationNo:extra.reg,programmeId:extra.programmeId,currentYearId:extra.yearId,currentSemesterId:extra.semesterId}}}:{}),...(extra?.staff?{lecturer:{create:{staffNo:extra.staff}}}:{})},include:{learner:true,lecturer:true}})}
-async function main(){await p.grade.deleteMany();await p.assignmentSubmission.deleteMany();await p.announcement.deleteMany();await p.assignment.deleteMany();await p.learningMaterial.deleteMany();await p.materialFolder.deleteMany();await p.courseProgress.deleteMany();await p.courseEnrollment.deleteMany();await p.enrollment.deleteMany();await p.course.deleteMany();await p.semester.deleteMany();await p.academicYear.deleteMany();await p.programme.deleteMany();
-const year=await p.academicYear.create({data:{name:'2026 Academic Year',order:1}});const sem=await p.semester.create({data:{name:'Semester 1',sequence:1,academicYearId:year.id}});const it=await p.programme.create({data:{code:'DEMO-DIT',name:'Demo: Diploma in Information Technology',description:'DEMO DATA — replace with Rhyme’s approved catalogue in Admin → Programmes.',isDemo:true}});const business=await p.programme.create({data:{code:'DEMO-DBM',name:'Demo: Diploma in Business Management',description:'DEMO DATA — replace with Rhyme’s approved catalogue in Admin → Programmes.',isDemo:true}});
-await user('admin@rhyme.demo','ADMIN','Grace','Wanjiku');const l1=await user('jane.kimani@rhyme.demo','LECTURER','Jane','Kimani',{staff:'RHY-L-001'});const l2=await user('peter.otieno@rhyme.demo','LECTURER','Peter','Otieno',{staff:'RHY-L-002'});await user('mary.wambui@rhyme.demo','LECTURER','Mary','Wambui',{staff:'RHY-L-003'});
-const c1=await p.course.create({data:{code:'DEMO-IT101',title:'Digital Foundations',description:'A demo course used to demonstrate the learning experience.',objectives:['Use core productivity tools','Apply safe digital practices','Communicate online professionally'],creditHours:3,programmeId:it.id,academicYearId:year.id,semesterId:sem.id,lecturerId:l1.lecturer!.id}});const c2=await p.course.create({data:{code:'DEMO-IT102',title:'Web Design Essentials',description:'A demo course in practical web design foundations.',objectives:['Structure accessible web pages','Create responsive layouts'],creditHours:3,programmeId:it.id,academicYearId:year.id,semesterId:sem.id,lecturerId:l2.lecturer!.id}});await p.course.create({data:{code:'DEMO-BM101',title:'Principles of Management',description:'DEMO DATA course.',objectives:['Explain management principles'],creditHours:3,programmeId:business.id,academicYearId:year.id,semesterId:sem.id,lecturerId:l1.lecturer!.id}});
-const names=['Eric Mwangi','Amina Hassan','Brian Kariuki','Faith Njeri','Kevin Odhiambo','Lucy Achieng','Daniel Mutua','Sharon Wairimu','Moses Kamau','Ivy Chebet','Allan Kiptoo','Purity Wanjiru'];let learners=[];for(let i=0;i<names.length;i++){const [first,...rest]=names[i].split(' ');learners.push(await user(`student${i+1}@rhyme.demo`,'LEARNER',first,rest.join(' '),{reg:`RHY/2026/${String(i+1).padStart(3,'0')}`,programmeId:it.id,yearId:year.id,semesterId:sem.id}))}for(const u of learners){await p.enrollment.create({data:{learnerId:u.learner!.id,programmeId:it.id,academicYearId:year.id,semesterId:sem.id}});for(const courseId of [c1.id,c2.id])await p.courseEnrollment.create({data:{learnerId:u.learner!.id,courseId}})}
-await p.learningMaterial.createMany({data:[{title:'Welcome and course guide',fileUrl:'/uploads/demo-course-guide.pdf',fileName:'demo-course-guide.pdf',mimeType:'application/pdf',fileSize:482000,courseId:c1.id,lecturerId:l1.lecturer!.id},{title:'HTML starter reference',fileUrl:'/uploads/demo-html-reference.pdf',fileName:'demo-html-reference.pdf',mimeType:'application/pdf',fileSize:285000,courseId:c2.id,lecturerId:l2.lecturer!.id}]});const a=await p.assignment.create({data:{title:'Digital skills reflection',description:'Reflect on practical digital skills you will use during your studies.',instructions:'Submit a concise one-page PDF reflection.',maxMarks:100,dueDate:new Date(Date.now()+1000*60*60*24*8),published:true,allowResubmission:true,courseId:c1.id,lecturerId:l1.lecturer!.id}});const first=learners[0].learner!;const sub=await p.assignmentSubmission.create({data:{assignmentId:a.id,learnerId:first.id,comment:'My submitted reflection.',submittedAt:new Date(),status:'GRADED'}});await p.grade.create({data:{submissionId:sub.id,marks:84,percentage:84,letter:'A',feedback:'Thoughtful and well structured work.'}});await p.courseProgress.createMany({data:learners.map((u,i)=>({learnerId:u.learner!.id,courseId:c1.id,materialViews:i%2?1:0,activitiesCompleted:0}))});await p.announcement.create({data:{title:'Welcome to Semester 1',body:'Please review the course guide and plan your study timetable.',courseId:c1.id,lecturerId:l1.lecturer!.id}});console.log('Seeded demo LMS data. Password for all users: Rhyme@2026');}
-main().finally(()=>p.$disconnect());
+import { PrismaClient, type Role } from '@prisma/client';
+import bcrypt from 'bcryptjs';
+
+const prisma = new PrismaClient();
+const passwordHash = await bcrypt.hash('Rhyme@2026', 12);
+
+async function upsertUser(email: string, role: Role, firstName: string, lastName: string, extra: { registrationNo?: string; staffNo?: string; programmeId?: string; yearId?: string; semesterId?: string } = {}) {
+  const existing = await prisma.user.findUnique({ where: { email }, include: { learner: true, lecturer: true, profile: true } });
+  if (existing) {
+    // Preserve account credentials, profile edits, and academic relationships on reruns.
+    if (!existing.profile) await prisma.profile.create({ data: { userId: existing.id, firstName, lastName } });
+    if (extra.registrationNo && !existing.learner) await prisma.learner.create({ data: { userId: existing.id, registrationNo: extra.registrationNo, programmeId: extra.programmeId, currentYearId: extra.yearId, currentSemesterId: extra.semesterId } });
+    if (extra.staffNo && !existing.lecturer) await prisma.lecturer.create({ data: { userId: existing.id, staffNo: extra.staffNo } });
+    return prisma.user.findUniqueOrThrow({ where: { id: existing.id }, include: { learner: true, lecturer: true } });
+  }
+  return prisma.user.create({ data: { email, role, passwordHash, profile: { create: { firstName, lastName } }, ...(extra.registrationNo ? { learner: { create: { registrationNo: extra.registrationNo, programmeId: extra.programmeId, currentYearId: extra.yearId, currentSemesterId: extra.semesterId } } } : {}), ...(extra.staffNo ? { lecturer: { create: { staffNo: extra.staffNo } } } : {}) }, include: { learner: true, lecturer: true } });
+}
+
+async function main() {
+  // Stable demo entities are upserted so this seed never clears or replaces existing records.
+  const year = await prisma.academicYear.upsert({ where: { name: '2026 Academic Year' }, update: {}, create: { name: '2026 Academic Year', order: 1 } });
+  const semester = await prisma.semester.upsert({ where: { academicYearId_name: { academicYearId: year.id, name: 'Semester 1' } }, update: {}, create: { name: 'Semester 1', sequence: 1, academicYearId: year.id } });
+  const programme = await prisma.programme.upsert({ where: { code: 'DEMO-DIT' }, update: {}, create: { code: 'DEMO-DIT', name: 'Demo: Diploma in Information Technology', description: 'DEMO DATA — replace with Rhyme’s approved catalogue in Admin → Programmes.', isDemo: true } });
+  const business = await prisma.programme.upsert({ where: { code: 'DEMO-DBM' }, update: {}, create: { code: 'DEMO-DBM', name: 'Demo: Diploma in Business Management', description: 'DEMO DATA — replace with Rhyme’s approved catalogue in Admin → Programmes.', isDemo: true } });
+
+  await upsertUser('admin@rhyme.demo', 'ADMIN', 'Grace', 'Wanjiku');
+  const lecturers = await Promise.all([
+    upsertUser('jane.kimani@rhyme.demo', 'LECTURER', 'Jane', 'Kimani', { staffNo: 'RHY-L-001' }),
+    upsertUser('lecturer2@rhyme.demo', 'LECTURER', 'Peter', 'Otieno', { staffNo: 'RHY-L-002' }),
+    upsertUser('lecturer3@rhyme.demo', 'LECTURER', 'Mary', 'Wambui', { staffNo: 'RHY-L-003' }),
+    upsertUser('lecturer4@rhyme.demo', 'LECTURER', 'David', 'Mutua', { staffNo: 'RHY-L-004' }),
+  ]);
+
+  const courses = [
+    { code: 'DEMO-IT101', title: 'Digital Foundations', programmeId: programme.id, lecturerId: lecturers[0].lecturer!.id, description: 'A demo course used to demonstrate the learning experience.', objectives: ['Use core productivity tools', 'Apply safe digital practices', 'Communicate online professionally'] },
+    { code: 'DEMO-IT102', title: 'Web Design Essentials', programmeId: programme.id, lecturerId: lecturers[1].lecturer!.id, description: 'A demo course in practical web design foundations.', objectives: ['Structure accessible web pages', 'Create responsive layouts'] },
+    { code: 'DEMO-BM101', title: 'Principles of Management', programmeId: business.id, lecturerId: lecturers[0].lecturer!.id, description: 'DEMO DATA course.', objectives: ['Explain management principles'] },
+  ];
+  for (const course of courses) await prisma.course.upsert({ where: { code: course.code }, update: {}, create: { ...course, creditHours: 3, academicYearId: year.id, semesterId: semester.id } });
+
+  const learners = [];
+  const names = ['Eric Mwangi', 'Amina Hassan', 'Brian Kariuki', 'Faith Njeri', 'Kevin Odhiambo'];
+  for (let i = 0; i < names.length; i++) {
+    const [firstName, lastName] = names[i].split(' ');
+    learners.push(await upsertUser(`student${i + 1}@rhyme.demo`, 'LEARNER', firstName, lastName, { registrationNo: `RHY/2026/${String(i + 1).padStart(3, '0')}`, programmeId: programme.id, yearId: year.id, semesterId: semester.id }));
+  }
+
+  for (const learner of learners) {
+    const learnerId = learner.learner!.id;
+    await prisma.enrollment.upsert({ where: { learnerId_programmeId_academicYearId_semesterId: { learnerId, programmeId: programme.id, academicYearId: year.id, semesterId: semester.id } }, update: {}, create: { learnerId, programmeId: programme.id, academicYearId: year.id, semesterId: semester.id } });
+    for (const { code } of courses.slice(0, 2)) {
+      const course = await prisma.course.findUniqueOrThrow({ where: { code } });
+      await prisma.courseEnrollment.upsert({ where: { learnerId_courseId: { learnerId, courseId: course.id } }, update: {}, create: { learnerId, courseId: course.id } });
+    }
+  }
+  console.log('Seeded demo academic records and the 10 requested demo accounts. Password for newly created accounts: Rhyme@2026');
+}
+
+main().finally(() => prisma.$disconnect());
