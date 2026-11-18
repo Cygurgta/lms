@@ -1,7 +1,16 @@
 {
   "name": "rhyme-lms",
   "private": true,
-  "workspaces": ["client", "server"],
-  "scripts": { "dev": "concurrently \"npm run dev -w server\" \"npm run dev -w client\"", "build": "npm run build -w server && npm run build -w client" },
-  "devDependencies": { "concurrently": "^9.1.2" }
+  "scripts": {
+    "predev": "pnpm --filter @rhyme-lms/server run db:generate",
+    "dev": "concurrently -k -n API,CLIENT \"PORT=4000 pnpm --filter @rhyme-lms/server run dev\" \"pnpm --filter @rhyme-lms/client run dev\"",
+    "build": "pnpm --filter @rhyme-lms/server run build && pnpm --filter @rhyme-lms/client run build",
+    "db:generate": "pnpm --filter @rhyme-lms/server run db:generate",
+    "db:migrate": "pnpm --filter @rhyme-lms/server run db:migrate",
+    "db:seed": "pnpm --filter @rhyme-lms/server run db:seed",
+    "db:deploy": "pnpm --filter @rhyme-lms/server exec prisma migrate deploy"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
 }

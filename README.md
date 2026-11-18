@@ -14,14 +14,13 @@ The supplied public deployment could not be fetched or reliably indexed during i
 
 ## Setup
 
-1. Copy `server/.env.example` to `server/.env` and set `DATABASE_URL` and a unique `JWT_SECRET`.
-2. Optionally create `client/.env` with `VITE_API_URL=http://localhost:4000/api` (the client uses this default otherwise).
-3. Run `npm install`.
-4. Start PostgreSQL with `docker compose up -d postgres`.
-5. Run `cd server && npx prisma generate && npx prisma migrate dev && npm run db:seed`.
-6. From the repository root, run `npm run dev`.
+1. Copy `server/.env.example` to `server/.env` and set unique JWT secrets. The template points to the local PostgreSQL port 5434. Copy `client/.env.example` to `client/.env` if you need a custom API URL.
+2. Install all workspace dependencies from the repository root with `pnpm install`.
+3. Start PostgreSQL with `docker compose up -d postgres`.
+4. Run `pnpm db:generate`, `pnpm db:deploy`, and `pnpm db:seed` from the repository root to generate Prisma Client, apply committed migrations, and seed the database.
+5. Run `pnpm dev` to start the API at port 4000 and the Vite client at port 5173 together.
 
-Build both packages with `npm run build`.
+Build both packages with `pnpm build`.
 
 ### Demonstration accounts
 
